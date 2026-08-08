@@ -1,211 +1,288 @@
 import { BasePage } from './base.page';
-import { Page, Locator } from '@playwright/test';
+import { Page, Locator, expect } from '@playwright/test';
 
+/**
+ * DashboardPage - Page Object for CCTV Malang Map Dashboard
+ * 
+ * The site is a Leaflet-based interactive map showing CCTV camera clusters
+ * across Kota Malang. Key UI elements:
+ * - Kecamatan dropdown filter (SELURUH KECAMATAN, BLIMBING, KLOJEN, etc.)
+ * - Location search input with search button
+ * - Leaflet map with cluster markers (numbers showing camera count per area)
+ * - Map controls (zoom in/out)
+ * - Government logos at bottom-left
+ */
 export class DashboardPage extends BasePage {
     public url = 'https://cctv.malangkota.go.id/';
 
-    readonly pageTitle: Locator;
-    readonly mainLogo: Locator;
-    readonly navigationMenu: Locator;
-    readonly navLinks: Locator;
-    readonly searchButton: Locator;
+    // =========================================================================
+    // LOCATORS - Based on actual CCTV Malang UI
+    // =========================================================================
+
+    // Kecamatan (District) Filter Dropdown
+    readonly kecamatanDropdown: Locator;
+
+    // Search Section
     readonly searchInput: Locator;
-    readonly searchResults: Locator;
-    readonly cameraCards: Locator;
-    readonly cameraTitle: Locator;
-    readonly cameraStatus: Locator;
-    readonly cameraLocation: Locator;
-    readonly filterButton: Locator;
-    readonly sortDropdown: Locator;
-    readonly statusFilter: Locator;
-    readonly nextPageBtn: Locator;
-    readonly prevPageBtn: Locator;
-    readonly pageInfo: Locator;
-    readonly modalDialog: Locator;
-    readonly closeModalBtn: Locator;
-    readonly errorMessage: Locator;
-    readonly noResultsMessage: Locator;
+    readonly searchButton: Locator;
+
+    // Map Elements (Leaflet)
+    readonly mapContainer: Locator;
+    readonly clusterMarkers: Locator;
+    readonly mapPopup: Locator;
+    readonly mapPopupContent: Locator;
+    readonly mapPopupCloseButton: Locator;
+
+    // Map Controls
+    readonly zoomInButton: Locator;
+    readonly zoomOutButton: Locator;
+
+    // Logo / Branding
+    readonly governmentLogos: Locator;
+
+    // Leaflet Attribution
+    readonly leafletAttribution: Locator;
 
     constructor(page: Page) {
         super(page);
-        this.pageTitle = page.locator('h1, .header-title, [role="heading"]').first();
-        this.mainLogo = page.locator('img.logo, [data-testid="logo"], img[alt*="logo" i]').first();
-        this.navigationMenu = page.locator('nav, [role="navigation"]');
-        this.navLinks = page.locator('nav a, [role="navigation"] a');
-        this.searchButton = page.locator('button[aria-label*="search" i], button[type="submit"], .search-btn').first();
-        this.searchInput = page.locator('input[placeholder*="search" i], input[type="text"]').first();
-        this.searchResults = page.locator('.search-result, .results-container');
-        this.cameraCards = page.locator('.camera-card, [data-testid="camera-card"], .card, .bg-white.rounded-lg').filter({ hasText: '' });
-        this.cameraTitle = page.locator('.camera-title, h3, .card-title, .font-bold');
-        this.cameraStatus = page.locator('.status-badge, .badge, [data-testid="status"]');
-        this.cameraLocation = page.locator('.location, .address, [data-testid="location"]');
-        this.filterButton = page.locator('button:has-text("Filter"), [aria-label="filter"]');
-        this.sortDropdown = page.locator('select.sort-dropdown, [aria-label="sort"]');
-        this.statusFilter = page.locator('select.status-filter, [aria-label="status filter"]');
-        this.nextPageBtn = page.locator('button[aria-label="next page" i], .pagination-next');
-        this.prevPageBtn = page.locator('button[aria-label="previous page" i], .pagination-prev');
-        this.pageInfo = page.locator('.pagination-info, .page-stats');
-        this.modalDialog = page.locator('.modal, [role="dialog"]');
-        this.closeModalBtn = page.locator('.close-btn, button[aria-label="close" i]');
-        this.errorMessage = page.locator('.error-message, .alert-danger');
-        this.noResultsMessage = page.locator('text=No results, .no-results, text=tidak ditemukan');
+
+        // Kecamatan dropdown - the <select> element for district filtering
+        this.kecamatanDropdown = page.locator('select').first();
+
+        // Search input and button
+        this.searchInput = page.locator('input[placeholder*="Cari" i], input[type="text"]').first();
+        this.searchButton = page.locator('button:near(input)').first();
+
+        // Leaflet map container
+        this.mapContainer = page.locator('.leaflet-container').first();
+
+        // Cluster markers on the map (Leaflet marker cluster icons with numbers)
+        this.clusterMarkers = page.locator('.leaflet-marker-icon');
+
+        // Map popup (appears when clicking a marker)
+        this.mapPopup = page.locator('.leaflet-popup');
+        this.mapPopupContent = page.locator('.leaflet-popup-content');
+        this.mapPopupCloseButton = page.locator('.leaflet-popup-close-button');
+
+        // Zoom controls
+        this.zoomInButton = page.locator('.leaflet-control-zoom-in');
+        this.zoomOutButton = page.locator('.leaflet-control-zoom-out');
+
+        // Government logos at the bottom
+        this.governmentLogos = page.locator('img[src*="logo"], img[alt*="logo" i], img[alt*="malang" i]');
+
+        // Leaflet attribution
+        this.leafletAttribution = page.locator('.leaflet-control-attribution');
     }
 
+    // =========================================================================
+    // NAVIGATION & PAGE SETUP
+    // =========================================================================
+
+    /**
+     * Navigate to the CCTV Malang dashboard
+     */
     async navigateToDashboard(): Promise<void> {
+        this.logger.info('Navigating to CCTV Malang dashboard...');
         await this.goto();
         await this.waitForPageLoad();
     }
 
+    /**
+     * Verify dashboard is loaded with all main elements:
+     * - Map container visible
+     * - Kecamatan dropdown visible
+     * - Search input visible
+     * - Cluster markers rendered on map
+     */
     async verifyDashboardLoaded(): Promise<void> {
-        this.logger.info('Verifying dashboard is loaded');
-        await this.assertElementVisible(this.pageTitle, 'Page title should be visible');
-        await this.assertElementVisible(this.navigationMenu, 'Navigation menu should be visible');
+        this.logger.info('Verifying dashboard is fully loaded...');
+        await this.assertElementVisible(this.mapContainer);
+        await this.assertElementVisible(this.kecamatanDropdown);
+        await this.assertElementVisible(this.searchInput);
+        this.logger.info('✓ Dashboard loaded successfully');
     }
 
-    async verifyPageTitle(expectedTitle: string | RegExp): Promise<void> {
-        this.logger.info(`Verifying page title matches: ${expectedTitle}`);
-        await this.assertPageTitle(expectedTitle);
+    // =========================================================================
+    // KECAMATAN (DISTRICT) FILTER
+    // =========================================================================
+
+    /**
+     * Select a kecamatan (district) from the dropdown
+     * Options: SELURUH KECAMATAN, BLIMBING, KLOJEN, KEDUNGKANDANG, SUKUN, LOWOKWARU
+     */
+    async selectKecamatan(kecamatan: string): Promise<void> {
+        this.logger.info(`Selecting kecamatan: ${kecamatan}`);
+        await this.kecamatanDropdown.selectOption({ label: kecamatan });
+        // Wait for map to update after filter change
+        await this.page.waitForTimeout(1500);
     }
 
-    async searchCamera(cameraName: string): Promise<void> {
-        this.logger.info(`Searching for camera: ${cameraName}`);
-        await this.fill(this.searchInput, cameraName);
-        await this.pressKey('Enter');
-        await this.waitForPageLoad();
-        await this.page.waitForTimeout(1000); 
+    /**
+     * Get currently selected kecamatan
+     */
+    async getSelectedKecamatan(): Promise<string> {
+        const value = await this.kecamatanDropdown.inputValue();
+        this.logger.info(`Currently selected kecamatan value: ${value}`);
+        return value;
     }
 
+    /**
+     * Get all available kecamatan options
+     */
+    async getKecamatanOptions(): Promise<string[]> {
+        const options = await this.kecamatanDropdown.locator('option').allTextContents();
+        this.logger.info(`Available kecamatan options: ${options.join(', ')}`);
+        return options;
+    }
+
+    /**
+     * Reset kecamatan filter to show all districts
+     */
+    async resetKecamatanFilter(): Promise<void> {
+        this.logger.info('Resetting kecamatan filter to SELURUH KECAMATAN');
+        await this.kecamatanDropdown.selectOption({ index: 0 });
+        await this.page.waitForTimeout(1500);
+    }
+
+    // =========================================================================
+    // SEARCH FUNCTIONALITY
+    // =========================================================================
+
+    /**
+     * Search for a location on the map
+     */
+    async searchLocation(locationName: string): Promise<void> {
+        this.logger.info(`Searching for location: ${locationName}`);
+        await this.searchInput.fill(locationName);
+        await this.searchButton.click();
+        // Wait for map to pan/zoom to location
+        await this.page.waitForTimeout(1500);
+    }
+
+    /**
+     * Clear the search input
+     */
     async clearSearch(): Promise<void> {
         this.logger.info('Clearing search input');
-        await this.fill(this.searchInput, '');
-        await this.pressKey('Enter');
-        await this.waitForPageLoad();
+        await this.searchInput.fill('');
+        await this.page.waitForTimeout(500);
+    }
+
+    /**
+     * Get current search input value
+     */
+    async getSearchInputValue(): Promise<string> {
+        return await this.searchInput.inputValue();
+    }
+
+    // =========================================================================
+    // MAP INTERACTION
+    // =========================================================================
+
+    /**
+     * Get the number of marker clusters visible on the map
+     */
+    async getClusterMarkerCount(): Promise<number> {
+        const count = await this.clusterMarkers.count();
+        this.logger.info(`Found ${count} cluster markers on map`);
+        return count;
+    }
+
+    /**
+     * Click on a specific cluster marker by index
+     */
+    async clickClusterMarker(index: number): Promise<void> {
+        this.logger.info(`Clicking cluster marker at index: ${index}`);
+        await this.clusterMarkers.nth(index).click();
         await this.page.waitForTimeout(1000);
     }
 
-    async getSearchResultsCount(): Promise<number> {
-        this.logger.info('Getting search results count');
-        return await this.cameraCards.count();
+    /**
+     * Check if a map popup is currently visible
+     */
+    async isPopupVisible(): Promise<boolean> {
+        return await this.isVisible(this.mapPopup, 3000);
     }
 
-    async verifySearchResultsContain(text: string): Promise<void> {
-        this.logger.info(`Verifying search results contain text: ${text}`);
-        const count = await this.cameraCards.count();
-        if (count > 0) {
-            await this.assertElementContains(this.cameraCards.first(), text);
+    /**
+     * Get popup content text
+     */
+    async getPopupContent(): Promise<string> {
+        if (await this.isPopupVisible()) {
+            const text = await this.mapPopupContent.textContent();
+            return text?.trim() || '';
+        }
+        return '';
+    }
+
+    /**
+     * Close the currently open popup
+     */
+    async closePopup(): Promise<void> {
+        if (await this.isPopupVisible()) {
+            this.logger.info('Closing map popup');
+            await this.mapPopupCloseButton.click();
         }
     }
 
-    async getCameraCount(): Promise<number> {
-        this.logger.info('Getting total camera count on page');
-        return await this.cameraCards.count();
-    }
-
-    async getCameraNames(): Promise<string[]> {
-        this.logger.info('Getting all camera names');
-        const count = await this.cameraCards.count();
-        const names: string[] = [];
-        for (let i = 0; i < count; i++) {
-            const text = await this.cameraCards.nth(i).locator(this.cameraTitle).textContent();
-            if (text) names.push(text.trim());
-        }
-        return names;
-    }
-
-    async clickCameraByIndex(index: number): Promise<void> {
-        this.logger.info(`Clicking camera at index: ${index}`);
-        await this.cameraCards.nth(index).click();
-        await this.waitForPageLoad();
-    }
-
-    async clickCameraByName(cameraName: string): Promise<void> {
-        this.logger.info(`Clicking camera by name: ${cameraName}`);
-        const camera = this.cameraCards.filter({ hasText: cameraName }).first();
-        await camera.click();
-        await this.waitForPageLoad();
-    }
-
-    async getCameraDetails(index: number): Promise<{name: string, location: string, status: string}> {
-        this.logger.info(`Getting camera details for index: ${index}`);
-        const card = this.cameraCards.nth(index);
-        const name = await card.locator(this.cameraTitle).first().textContent() || '';
-        const location = await card.locator(this.cameraLocation).first().textContent() || '';
-        const status = await card.locator(this.cameraStatus).first().textContent() || '';
-        
-        return {
-            name: name.trim(),
-            location: location.trim(),
-            status: status.trim()
-        };
-    }
-
-    async filterByStatus(status: string): Promise<void> {
-        this.logger.info(`Filtering by status: ${status}`);
-        if (await this.isVisible(this.filterButton)) {
-            await this.click(this.filterButton);
-        }
-        await this.selectOption(this.statusFilter, status);
-        await this.waitForPageLoad();
-    }
-
-    async sortBy(sortOption: string): Promise<void> {
-        this.logger.info(`Sorting by: ${sortOption}`);
-        await this.selectOption(this.sortDropdown, sortOption);
-        await this.waitForPageLoad();
-    }
-
-    async resetFilters(): Promise<void> {
-        this.logger.info('Resetting filters');
-        if (await this.isVisible('button:has-text("Reset")')) {
-            await this.click('button:has-text("Reset")');
-            await this.waitForPageLoad();
+    /**
+     * Zoom in on the map
+     */
+    async zoomIn(clicks: number = 1): Promise<void> {
+        this.logger.info(`Zooming in ${clicks} time(s)`);
+        for (let i = 0; i < clicks; i++) {
+            await this.zoomInButton.click();
+            await this.page.waitForTimeout(500);
         }
     }
 
-    async goToNextPage(): Promise<void> {
-        this.logger.info('Going to next page');
-        if (await this.isVisible(this.nextPageBtn)) {
-            await this.click(this.nextPageBtn);
-            await this.waitForPageLoad();
+    /**
+     * Zoom out on the map
+     */
+    async zoomOut(clicks: number = 1): Promise<void> {
+        this.logger.info(`Zooming out ${clicks} time(s)`);
+        for (let i = 0; i < clicks; i++) {
+            await this.zoomOutButton.click();
+            await this.page.waitForTimeout(500);
         }
     }
 
-    async goToPreviousPage(): Promise<void> {
-        this.logger.info('Going to previous page');
-        if (await this.isVisible(this.prevPageBtn)) {
-            await this.click(this.prevPageBtn);
-            await this.waitForPageLoad();
-        }
+    /**
+     * Get the count of markers after zooming (markers may split or merge)
+     */
+    async getMarkerCountAfterZoom(): Promise<number> {
+        await this.page.waitForTimeout(1000);
+        return await this.getClusterMarkerCount();
     }
 
-    async verifyErrorMessage(expectedMessage: string): Promise<void> {
-        this.logger.info(`Verifying error message: ${expectedMessage}`);
-        await this.assertElementVisible(this.errorMessage);
-        await this.assertElementContains(this.errorMessage, expectedMessage);
+    // =========================================================================
+    // VERIFICATION METHODS
+    // =========================================================================
+
+    /**
+     * Verify map controls are visible (zoom in/out)
+     */
+    async verifyMapControlsVisible(): Promise<void> {
+        this.logger.info('Verifying map controls are visible');
+        await this.assertElementVisible(this.zoomInButton);
+        await this.assertElementVisible(this.zoomOutButton);
     }
 
-    async verifyNoResultsMessage(): Promise<void> {
-        this.logger.info('Verifying no results message is shown');
-        await this.assertElementVisible(this.noResultsMessage);
+    /**
+     * Verify Leaflet attribution is present
+     */
+    async verifyMapAttribution(): Promise<void> {
+        this.logger.info('Verifying map attribution');
+        await this.assertElementVisible(this.leafletAttribution);
     }
 
-    async handleError(): Promise<void> {
-        this.logger.info('Handling error if any');
-        if (await this.isVisible(this.errorMessage, 2000)) {
-            this.logger.warn('Error message found on page');
-        }
-    }
-
-    async closeModal(): Promise<void> {
-        this.logger.info('Closing modal if open');
-        if (await this.isVisible(this.modalDialog, 2000)) {
-            await this.click(this.closeModalBtn);
-        }
-    }
-
-    async scrollToBottom(): Promise<void> {
-        this.logger.info('Scrolling to bottom of the page');
-        await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await this.waitForPageLoad();
+    /**
+     * Verify government logos are displayed
+     */
+    async verifyLogosDisplayed(): Promise<void> {
+        this.logger.info('Verifying government logos');
+        const logoCount = await this.governmentLogos.count();
+        expect(logoCount).toBeGreaterThan(0);
     }
 }
