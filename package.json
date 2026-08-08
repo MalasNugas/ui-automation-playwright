@@ -1,0 +1,17 @@
+{
+  "name": "playwright-ui-automation",
+  "version": "1.0.0",
+  "description": "UI Automation Framework using Playwright with Page Object Model",
+  "scripts": {
+    "test": "playwright test",
+    "test:debug": "playwright test --debug",
+    "test:headed": "playwright test --headed",
+    "test:parallel": "playwright test --workers=4",
+    "test:single": "playwright test --workers=1",
+    "report": "playwright show-report reports/html-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "dotenv": "^16.3.1"
+  }
+}
